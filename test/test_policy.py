@@ -2,13 +2,17 @@ import hashlib
 import pytest
 from datetime import date
 
+from ssh_audit.policy import Policy
+from ssh_audit.writebuf import WriteBuf
+from ssh_audit.ssh import SSH2
+
 
 class TestPolicy:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
-        self.Policy = ssh_audit.Policy
-        self.wbuf = ssh_audit.WriteBuf
-        self.ssh2 = ssh_audit.SSH2
+        self.Policy = Policy
+        self.wbuf = WriteBuf
+        self.ssh2 = SSH2
 
 
     def _get_kex(self):

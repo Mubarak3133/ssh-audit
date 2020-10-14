@@ -2,17 +2,23 @@ import os
 import struct
 import pytest
 
+from ssh_audit.auditconf import AuditConf
+from ssh_audit.readbuf import ReadBuf
+from ssh_audit.ssh import SSH, SSH2
+from ssh_audit.ssh_audit import audit
+from ssh_audit.writebuf import WriteBuf
+
 
 # pylint: disable=line-too-long,attribute-defined-outside-init
 class TestSSH2:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
-        self.ssh = ssh_audit.SSH
-        self.ssh2 = ssh_audit.SSH2
-        self.rbuf = ssh_audit.ReadBuf
-        self.wbuf = ssh_audit.WriteBuf
-        self.audit = ssh_audit.audit
-        self.AuditConf = ssh_audit.AuditConf
+        self.ssh = SSH
+        self.ssh2 = SSH2
+        self.rbuf = ReadBuf
+        self.wbuf = WriteBuf
+        self.audit = audit
+        self.AuditConf = AuditConf
 
     def _conf(self):
         conf = self.AuditConf('localhost', 22)

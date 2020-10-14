@@ -23,6 +23,8 @@
 """
 from typing import Dict, List, Tuple
 from typing import Optional, Any
+from datetime import date
+from ssh_audit.ssh import SSH, SSH2  # pylint: disable=unused-import
 
 
 # Validates policy files and performs policy testing
@@ -65,8 +67,8 @@ class Policy:
             val = None
             try:
                 key, val = line.split('=')
-            except ValueError:
-                raise ValueError("could not parse line: %s" % line)
+            except ValueError as ve:
+                raise ValueError("could not parse line: %s" % line) from ve
 
             key = key.strip()
             val = val.strip()
