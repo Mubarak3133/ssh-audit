@@ -42,182 +42,11 @@ from ssh_audit import exitcodes
 from ssh_audit.globals import SSH_HEADER
 from ssh_audit.output import Output
 from ssh_audit.readbuf import ReadBuf
+from ssh_audit.ssh1 import SSH1
+from ssh_audit.ssh1_kexdb import SSH1_KexDB
+from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.utils import Utils
 from ssh_audit.writebuf import WriteBuf
-
-
-class SSH1:
-    class CRC32:
-        def __init__(self) -> None:
-            self._table = [0] * 256
-            for i in range(256):
-                crc = 0
-                n = i
-                for _ in range(8):
-                    x = (crc ^ n) & 1
-                    crc = (crc >> 1) ^ (x * 0xedb88320)
-                    n = n >> 1
-                self._table[i] = crc
-
-        def calc(self, v: bytes) -> int:
-            crc, length = 0, len(v)
-            for i in range(length):
-                n = ord(v[i:i + 1])
-                n = n ^ (crc & 0xff)
-                crc = (crc >> 8) ^ self._table[n]
-            return crc
-
-    _crc32 = None  # type: Optional[SSH1.CRC32]
-    CIPHERS = ['none', 'idea', 'des', '3des', 'tss', 'rc4', 'blowfish']
-    AUTHS = ['none', 'rhosts', 'rsa', 'password', 'rhosts_rsa', 'tis', 'kerberos']
-
-    @classmethod
-    def crc32(cls, v: bytes) -> int:
-        if cls._crc32 is None:
-            cls._crc32 = cls.CRC32()
-        return cls._crc32.calc(v)
-
-    class KexDB:  # pylint: disable=too-few-public-methods
-        FAIL_PLAINTEXT = 'no encryption/integrity'
-        FAIL_OPENSSH37_REMOVE = 'removed since OpenSSH 3.7'
-        FAIL_NA_BROKEN = 'not implemented in OpenSSH, broken algorithm'
-        FAIL_NA_UNSAFE = 'not implemented in OpenSSH (server), unsafe algorithm'
-        TEXT_CIPHER_IDEA = 'cipher used by commercial SSH'
-
-        ALGORITHMS = {
-            'key': {
-                'ssh-rsa1': [['1.2.2']],
-            },
-            'enc': {
-                'none': [['1.2.2'], [FAIL_PLAINTEXT]],
-                'idea': [[None], [], [], [TEXT_CIPHER_IDEA]],
-                'des': [['2.3.0C'], [FAIL_NA_UNSAFE]],
-                '3des': [['1.2.2']],
-                'tss': [[''], [FAIL_NA_BROKEN]],
-                'rc4': [[], [FAIL_NA_BROKEN]],
-                'blowfish': [['1.2.2']],
-            },
-            'aut': {
-                'rhosts': [['1.2.2', '3.6'], [FAIL_OPENSSH37_REMOVE]],
-                'rsa': [['1.2.2']],
-                'password': [['1.2.2']],
-                'rhosts_rsa': [['1.2.2']],
-                'tis': [['1.2.2']],
-                'kerberos': [['1.2.2', '3.6'], [FAIL_OPENSSH37_REMOVE]],
-            }
-        }  # type: Dict[str, Dict[str, List[List[Optional[str]]]]]
-
-    class PublicKeyMessage:
-        def __init__(self, cookie: bytes, skey: Tuple[int, int, int], hkey: Tuple[int, int, int], pflags: int, cmask: int, amask: int) -> None:
-            if len(skey) != 3:
-                raise ValueError('invalid server key pair: {}'.format(skey))
-            if len(hkey) != 3:
-                raise ValueError('invalid host key pair: {}'.format(hkey))
-            self.__cookie = cookie
-            self.__server_key = skey
-            self.__host_key = hkey
-            self.__protocol_flags = pflags
-            self.__supported_ciphers_mask = cmask
-            self.__supported_authentications_mask = amask
-
-        @property
-        def cookie(self) -> bytes:
-            return self.__cookie
-
-        @property
-        def server_key_bits(self) -> int:
-            return self.__server_key[0]
-
-        @property
-        def server_key_public_exponent(self) -> int:
-            return self.__server_key[1]
-
-        @property
-        def server_key_public_modulus(self) -> int:
-            return self.__server_key[2]
-
-        @property
-        def host_key_bits(self) -> int:
-            return self.__host_key[0]
-
-        @property
-        def host_key_public_exponent(self) -> int:
-            return self.__host_key[1]
-
-        @property
-        def host_key_public_modulus(self) -> int:
-            return self.__host_key[2]
-
-        @property
-        def host_key_fingerprint_data(self) -> bytes:
-            # pylint: disable=protected-access
-            mod = WriteBuf._create_mpint(self.host_key_public_modulus, False)
-            e = WriteBuf._create_mpint(self.host_key_public_exponent, False)
-            return mod + e
-
-        @property
-        def protocol_flags(self) -> int:
-            return self.__protocol_flags
-
-        @property
-        def supported_ciphers_mask(self) -> int:
-            return self.__supported_ciphers_mask
-
-        @property
-        def supported_ciphers(self) -> List[str]:
-            ciphers = []
-            for i in range(len(SSH1.CIPHERS)):
-                if self.__supported_ciphers_mask & (1 << i) != 0:
-                    ciphers.append(Utils.to_text(SSH1.CIPHERS[i]))
-            return ciphers
-
-        @property
-        def supported_authentications_mask(self) -> int:
-            return self.__supported_authentications_mask
-
-        @property
-        def supported_authentications(self) -> List[str]:
-            auths = []
-            for i in range(1, len(SSH1.AUTHS)):
-                if self.__supported_authentications_mask & (1 << i) != 0:
-                    auths.append(Utils.to_text(SSH1.AUTHS[i]))
-            return auths
-
-        def write(self, wbuf: 'WriteBuf') -> None:
-            wbuf.write(self.cookie)
-            wbuf.write_int(self.server_key_bits)
-            wbuf.write_mpint1(self.server_key_public_exponent)
-            wbuf.write_mpint1(self.server_key_public_modulus)
-            wbuf.write_int(self.host_key_bits)
-            wbuf.write_mpint1(self.host_key_public_exponent)
-            wbuf.write_mpint1(self.host_key_public_modulus)
-            wbuf.write_int(self.protocol_flags)
-            wbuf.write_int(self.supported_ciphers_mask)
-            wbuf.write_int(self.supported_authentications_mask)
-
-        @property
-        def payload(self) -> bytes:
-            wbuf = WriteBuf()
-            self.write(wbuf)
-            return wbuf.write_flush()
-
-        @classmethod
-        def parse(cls, payload: bytes) -> 'SSH1.PublicKeyMessage':
-            buf = ReadBuf(payload)
-            cookie = buf.read(8)
-            server_key_bits = buf.read_int()
-            server_key_exponent = buf.read_mpint1()
-            server_key_modulus = buf.read_mpint1()
-            skey = (server_key_bits, server_key_exponent, server_key_modulus)
-            host_key_bits = buf.read_int()
-            host_key_exponent = buf.read_mpint1()
-            host_key_modulus = buf.read_mpint1()
-            hkey = (host_key_bits, host_key_exponent, host_key_modulus)
-            pflags = buf.read_int()
-            cmask = buf.read_int()
-            amask = buf.read_int()
-            pkm = cls(cookie, skey, hkey, pflags, cmask, amask)
-            return pkm
 
 
 class SSH2:  # pylint: disable=too-few-public-methods
@@ -1222,12 +1051,12 @@ class SSH:  # pylint: disable=too-few-public-methods
             return 'available since ' + ', '.join(tv).rstrip(', ')
 
     class Algorithms:
-        def __init__(self, pkm: Optional[SSH1.PublicKeyMessage], kex: Optional[SSH2.Kex]) -> None:
+        def __init__(self, pkm: Optional[SSH1_PublicKeyMessage], kex: Optional[SSH2.Kex]) -> None:
             self.__ssh1kex = pkm
             self.__ssh2kex = kex
 
         @property
-        def ssh1kex(self) -> Optional[SSH1.PublicKeyMessage]:
+        def ssh1kex(self) -> Optional[SSH1_PublicKeyMessage]:
             return self.__ssh1kex
 
         @property
@@ -1238,7 +1067,7 @@ class SSH:  # pylint: disable=too-few-public-methods
         def ssh1(self) -> Optional['SSH.Algorithms.Item']:
             if self.ssh1kex is None:
                 return None
-            item = SSH.Algorithms.Item(1, SSH1.KexDB.ALGORITHMS)
+            item = SSH.Algorithms.Item(1, SSH1_KexDB.ALGORITHMS)
             item.add('key', [u'ssh-rsa1'])
             item.add('enc', self.ssh1kex.supported_ciphers)
             item.add('aut', self.ssh1kex.supported_authentications)

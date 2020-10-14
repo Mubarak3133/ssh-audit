@@ -3,7 +3,9 @@ import pytest
 
 from ssh_audit.auditconf import AuditConf
 from ssh_audit.readbuf import ReadBuf
-from ssh_audit.ssh import SSH, SSH1
+from ssh_audit.ssh import SSH
+from ssh_audit.ssh1 import SSH1
+from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.ssh_audit import audit
 from ssh_audit.writebuf import WriteBuf
 
@@ -14,6 +16,7 @@ class TestSSH1:
     def init(self, ssh_audit):
         self.ssh = SSH
         self.ssh1 = SSH1
+        self.PublicKeyMessage = SSH1_PublicKeyMessage
         self.rbuf = ReadBuf
         self.wbuf = WriteBuf
         self.audit = audit
@@ -97,26 +100,26 @@ class TestSSH1:
         cookie = b'\x88\x99\xaa\xbb\xcc\xdd\xee\xff'
         pflags, cmask, amask = 2, 72, 36
         skey, hkey = self._server_key(), self._host_key()
-        pkm = self.ssh1.PublicKeyMessage(cookie, skey, hkey, pflags, cmask, amask)
+        pkm = self.PublicKeyMessage(cookie, skey, hkey, pflags, cmask, amask)
         self._assert_pkm_fields(pkm, skey, hkey)
         for skey2 in ([], [0], [0, 1], [0, 1, 2, 3]):
             with pytest.raises(ValueError):
-                pkm = self.ssh1.PublicKeyMessage(cookie, skey2, hkey, pflags, cmask, amask)
+                pkm = self.PublicKeyMessage(cookie, skey2, hkey, pflags, cmask, amask)
         for hkey2 in ([], [0], [0, 1], [0, 1, 2, 3]):
             with pytest.raises(ValueError):
                 print(hkey2)
-                pkm = self.ssh1.PublicKeyMessage(cookie, skey, hkey2, pflags, cmask, amask)
+                pkm = self.PublicKeyMessage(cookie, skey, hkey2, pflags, cmask, amask)
 
     def test_pkm_read(self):
-        pkm = self.ssh1.PublicKeyMessage.parse(self._pkm_payload())
+        pkm = self.PublicKeyMessage.parse(self._pkm_payload())
         self._assert_pkm_fields(pkm, self._server_key(), self._host_key())
 
     def test_pkm_payload(self):
         cookie = b'\x88\x99\xaa\xbb\xcc\xdd\xee\xff'
         skey, hkey = self._server_key(), self._host_key()
         pflags, cmask, amask = 2, 72, 36
-        pkm1 = self.ssh1.PublicKeyMessage(cookie, skey, hkey, pflags, cmask, amask)
-        pkm2 = self.ssh1.PublicKeyMessage.parse(self._pkm_payload())
+        pkm1 = self.PublicKeyMessage(cookie, skey, hkey, pflags, cmask, amask)
+        pkm2 = self.PublicKeyMessage.parse(self._pkm_payload())
         assert pkm1.payload == pkm2.payload
 
     def test_ssh1_server_simple(self, output_spy, virtual_socket):

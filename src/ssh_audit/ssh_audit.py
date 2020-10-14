@@ -39,7 +39,9 @@ from ssh_audit import exitcodes
 from ssh_audit.output import Output
 from ssh_audit.outputbuffer import OutputBuffer
 from ssh_audit.policy import Policy
-from ssh_audit.ssh import SSH, SSH1, SSH2  # pylint: disable=unused-import
+from ssh_audit.ssh import SSH, SSH2  # pylint: disable=unused-import
+from ssh_audit.ssh1_kexdb import SSH1_KexDB
+from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.utils import Utils
 
 
@@ -366,7 +368,7 @@ def output_info(software: Optional['SSH.Software'], client_audit: bool, any_prob
 
 
 # Returns a exitcodes.* flag to denote if any failures or warnings were encountered.
-def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2.Kex] = None, pkm: Optional[SSH1.PublicKeyMessage] = None, print_target: bool = False) -> int:
+def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2.Kex] = None, pkm: Optional[SSH1_PublicKeyMessage] = None, print_target: bool = False) -> int:
 
     program_retval = exitcodes.GOOD
     client_audit = client_host is not None  # If set, this is a client audit.
@@ -419,7 +421,7 @@ def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], cl
     # Filled in by output_algorithms() with unidentified algs.
     unknown_algorithms = []  # type: List[str]
     if pkm is not None:
-        adb = SSH1.KexDB.ALGORITHMS
+        adb = SSH1_KexDB.ALGORITHMS
         ciphers = pkm.supported_ciphers
         auths = pkm.supported_authentications
         title, atype = 'SSH1 host-key algorithms', 'key'
@@ -690,7 +692,7 @@ def process_commandline(args: List[str], usage_cb: Callable[..., None]) -> 'Audi
     return aconf
 
 
-def build_struct(banner: Optional['SSH.Banner'], kex: Optional['SSH2.Kex'] = None, pkm: Optional['SSH1.PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
+def build_struct(banner: Optional['SSH.Banner'], kex: Optional['SSH2.Kex'] = None, pkm: Optional['SSH1_PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
 
     banner_str = ''
     banner_protocol = None
@@ -843,7 +845,7 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
         out.fail(err)
         return exitcodes.CONNECTION_ERROR
     if sshv == 1:
-        program_retval = output(aconf, banner, header, pkm=SSH1.PublicKeyMessage.parse(payload))
+        program_retval = output(aconf, banner, header, pkm=SSH1_PublicKeyMessage.parse(payload))
     elif sshv == 2:
         kex = SSH2.Kex.parse(payload)
         if aconf.client_audit is False:
