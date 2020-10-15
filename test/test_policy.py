@@ -3,8 +3,8 @@ import pytest
 from datetime import date
 
 from ssh_audit.policy import Policy
+from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.writebuf import WriteBuf
-from ssh_audit.ssh import SSH2
 
 
 class TestPolicy:
@@ -12,7 +12,7 @@ class TestPolicy:
     def init(self, ssh_audit):
         self.Policy = Policy
         self.wbuf = WriteBuf
-        self.ssh2 = SSH2
+        self.ssh2_kex = SSH2_Kex
 
 
     def _get_kex(self):
@@ -32,7 +32,7 @@ class TestPolicy:
         w.write_list([''])
         w.write_byte(False)
         w.write_int(0)
-        return self.ssh2.Kex.parse(w.write_flush())
+        return self.ssh2_kex.parse(w.write_flush())
 
 
     def test_policy_basic(self):

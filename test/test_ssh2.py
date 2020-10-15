@@ -4,7 +4,10 @@ import pytest
 
 from ssh_audit.auditconf import AuditConf
 from ssh_audit.readbuf import ReadBuf
-from ssh_audit.ssh import SSH, SSH2
+from ssh_audit.ssh2_kex import SSH2_Kex
+from ssh_audit.ssh2_kexparty import SSH2_KexParty
+from ssh_audit.ssh import SSH
+from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh_audit import audit
 from ssh_audit.writebuf import WriteBuf
 
@@ -14,7 +17,9 @@ class TestSSH2:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
         self.ssh = SSH
-        self.ssh2 = SSH2
+        self.ssh_protocol = SSH_Protocol
+        self.ssh2_kex = SSH2_Kex
+        self.ssh2_kexparty = SSH2_KexParty
         self.rbuf = ReadBuf
         self.wbuf = WriteBuf
         self.audit = audit
@@ -57,7 +62,7 @@ class TestSSH2:
         return w.write_flush()
 
     def test_kex_read(self):
-        kex = self.ssh2.Kex.parse(self._kex_payload())
+        kex = self.ssh2_kex.parse(self._kex_payload())
         assert kex is not None
         assert kex.cookie == b'\x00\x11\x22\x33\x44\x55\x66\x77\x88\x99\xaa\xbb\xcc\xdd\xee\xff'
         assert kex.kex_algorithms == ['bogus_kex1', 'bogus_kex2']
@@ -78,12 +83,12 @@ class TestSSH2:
     def _get_empty_kex(self, cookie=None):
         kex_algs, key_algs = [], []
         enc, mac, compression, languages = [], [], ['none'], []
-        cli = self.ssh2.KexParty(enc, mac, compression, languages)
+        cli = self.ssh2_kexparty(enc, mac, compression, languages)
         enc, mac, compression, languages = [], [], ['none'], []
-        srv = self.ssh2.KexParty(enc, mac, compression, languages)
+        srv = self.ssh2_kexparty(enc, mac, compression, languages)
         if cookie is None:
             cookie = os.urandom(16)
-        kex = self.ssh2.Kex(cookie, kex_algs, key_algs, cli, srv, 0)
+        kex = self.ssh2_kex(cookie, kex_algs, key_algs, cli, srv, 0)
         return kex
 
     def _get_kex_variat1(self):
@@ -127,13 +132,13 @@ class TestSSH2:
 
     def test_key_payload(self):
         kex1 = self._get_kex_variat1()
-        kex2 = self.ssh2.Kex.parse(self._kex_payload())
+        kex2 = self.ssh2_kex.parse(self._kex_payload())
         assert kex1.payload == kex2.payload
 
     def test_ssh2_server_simple(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh.Protocol.MSG_KEXINIT)
+        w.write_byte(self.ssh_protocol.MSG_KEXINIT)
         w.write(self._kex_payload())
         vsocket.rdata.append(b'SSH-2.0-OpenSSH_7.3 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh2_packet(w.write_flush()))
@@ -145,7 +150,7 @@ class TestSSH2:
     def test_ssh2_server_invalid_first_packet(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh.Protocol.MSG_KEXINIT + 1)
+        w.write_byte(self.ssh_protocol.MSG_KEXINIT + 1)
         vsocket.rdata.append(b'SSH-2.0-OpenSSH_7.3 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh2_packet(w.write_flush()))
         output_spy.begin()

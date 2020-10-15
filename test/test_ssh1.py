@@ -4,6 +4,7 @@ import pytest
 from ssh_audit.auditconf import AuditConf
 from ssh_audit.readbuf import ReadBuf
 from ssh_audit.ssh import SSH
+from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh1 import SSH1
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.ssh_audit import audit
@@ -15,6 +16,7 @@ class TestSSH1:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
         self.ssh = SSH
+        self.ssh_protocol = SSH_Protocol
         self.ssh1 = SSH1
         self.PublicKeyMessage = SSH1_PublicKeyMessage
         self.rbuf = ReadBuf
@@ -125,7 +127,7 @@ class TestSSH1:
     def test_ssh1_server_simple(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh.Protocol.SMSG_PUBLIC_KEY)
+        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush()))
@@ -137,7 +139,7 @@ class TestSSH1:
     def test_ssh1_server_invalid_first_packet(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh.Protocol.SMSG_PUBLIC_KEY + 1)
+        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY + 1)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush()))
@@ -151,7 +153,7 @@ class TestSSH1:
     def test_ssh1_server_invalid_checksum(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh.Protocol.SMSG_PUBLIC_KEY + 1)
+        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY + 1)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush(), False))

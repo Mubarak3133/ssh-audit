@@ -39,9 +39,16 @@ from ssh_audit import exitcodes
 from ssh_audit.output import Output
 from ssh_audit.outputbuffer import OutputBuffer
 from ssh_audit.policy import Policy
-from ssh_audit.ssh import SSH, SSH2  # pylint: disable=unused-import
 from ssh_audit.ssh1_kexdb import SSH1_KexDB
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
+from ssh_audit.ssh2_gextest import SSH2_GEXTest
+from ssh_audit.ssh2_hostkeytest import SSH2_HostKeyTest
+from ssh_audit.ssh2_kex import SSH2_Kex
+from ssh_audit.ssh2_kexdb import SSH2_KexDB
+from ssh_audit.ssh import SSH  # pylint: disable=unused-import
+from ssh_audit.ssh_banner import SSH_Banner
+from ssh_audit.ssh_protocol import SSH_Protocol
+from ssh_audit.ssh_socket import SSH_Socket
 from ssh_audit.utils import Utils
 
 
@@ -229,7 +236,7 @@ def output_security_sub(sub: str, software: Optional[SSH.Software], client_audit
             out.fail('(sec) {}{} -- {}'.format(name, p, descr))
 
 
-def output_security(banner: Optional[SSH.Banner], client_audit: bool, padlen: int, is_json_output: bool) -> None:
+def output_security(banner: Optional[SSH_Banner], client_audit: bool, padlen: int, is_json_output: bool) -> None:
     with OutputBuffer() as obuf:
         if banner is not None:
             software = SSH.Software.parse(banner)
@@ -258,7 +265,7 @@ def output_fingerprints(algs: SSH.Algorithms, is_json_output: bool, sha256: bool
                 fp = SSH.Fingerprint(host_keys[host_key_type])
 
                 # Workaround for Python's order-indifference in dicts.  We might get a random RSA type (ssh-rsa, rsa-sha2-256, or rsa-sha2-512), so running the tool against the same server three times may give three different host key types here.  So if we have any RSA type, we will simply hard-code it to 'ssh-rsa'.
-                if host_key_type in SSH2.HostKeyTest.RSA_FAMILY:
+                if host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
                     host_key_type = 'ssh-rsa'
 
                 # Skip over certificate host types (or we would return invalid fingerprints).
@@ -368,7 +375,7 @@ def output_info(software: Optional['SSH.Software'], client_audit: bool, any_prob
 
 
 # Returns a exitcodes.* flag to denote if any failures or warnings were encountered.
-def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2.Kex] = None, pkm: Optional[SSH1_PublicKeyMessage] = None, print_target: bool = False) -> int:
+def output(aconf: AuditConf, banner: Optional[SSH_Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2_Kex] = None, pkm: Optional[SSH1_PublicKeyMessage] = None, print_target: bool = False) -> int:
 
     program_retval = exitcodes.GOOD
     client_audit = client_host is not None  # If set, this is a client audit.
@@ -431,7 +438,7 @@ def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], cl
         title, atype = 'SSH1 authentication types', 'aut'
         program_retval = output_algorithms(title, adb, atype, auths, unknown_algorithms, aconf.json, program_retval, maxlen)
     if kex is not None:
-        adb = SSH2.KexDB.ALGORITHMS
+        adb = SSH2_KexDB.ALGORITHMS
         title, atype = 'key exchange algorithms', 'kex'
         program_retval = output_algorithms(title, adb, atype, kex.kex_algorithms, unknown_algorithms, aconf.json, program_retval, maxlen, kex.dh_modulus_sizes())
         title, atype = 'host-key algorithms', 'key'
@@ -452,7 +459,7 @@ def output(aconf: AuditConf, banner: Optional[SSH.Banner], header: List[str], cl
     return program_retval
 
 
-def evaluate_policy(aconf: AuditConf, banner: Optional['SSH.Banner'], client_host: Optional[str], kex: Optional['SSH2.Kex'] = None) -> bool:
+def evaluate_policy(aconf: AuditConf, banner: Optional['SSH_Banner'], client_host: Optional[str], kex: Optional['SSH2_Kex'] = None) -> bool:
 
     if aconf.policy is None:
         raise RuntimeError('Internal error: cannot evaluate against null Policy!')
@@ -547,7 +554,7 @@ def list_policies() -> None:
         print("\nHint: Use -P and provide the path to a policy to run a policy scan.\n")
 
 
-def make_policy(aconf: AuditConf, banner: Optional['SSH.Banner'], kex: Optional['SSH2.Kex'], client_host: Optional[str]) -> None:
+def make_policy(aconf: AuditConf, banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'], client_host: Optional[str]) -> None:
 
     # Set the source of this policy to the server host if this is a server audit, otherwise set it to the client address.
     source = aconf.host  # type: Optional[str]
@@ -692,7 +699,7 @@ def process_commandline(args: List[str], usage_cb: Callable[..., None]) -> 'Audi
     return aconf
 
 
-def build_struct(banner: Optional['SSH.Banner'], kex: Optional['SSH2.Kex'] = None, pkm: Optional['SSH1_PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
+def build_struct(banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'] = None, pkm: Optional['SSH1_PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
 
     banner_str = ''
     banner_protocol = None
@@ -750,7 +757,7 @@ def build_struct(banner: Optional['SSH.Banner'], kex: Optional['SSH2.Kex'] = Non
 
         # Normalize all RSA key types to 'ssh-rsa'.  Otherwise, due to Python's order-indifference dictionary types, we would iterate key types in unpredictable orders, which interferes with the docker testing framework (i.e.: tests would fail because elements are reported out of order, even though the output is semantically the same).
         for host_key_type in list(host_keys.keys())[:]:
-            if host_key_type in SSH2.HostKeyTest.RSA_FAMILY:
+            if host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
                 val = host_keys[host_key_type]
                 del host_keys[host_key_type]
                 host_keys['ssh-rsa'] = val
@@ -796,7 +803,7 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
     out.verbose = aconf.verbose
     out.level = aconf.level
     out.use_colors = aconf.colors
-    s = SSH.Socket(aconf.host, aconf.port, aconf.ipvo, aconf.timeout, aconf.timeout_set)
+    s = SSH_Socket(aconf.host, aconf.port, aconf.ipvo, aconf.timeout, aconf.timeout_set)
     if aconf.client_audit:
         s.listen_and_accept()
     else:
@@ -832,10 +839,10 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
             err = '[exception] error reading packet ({})'.format(payload_txt)
         else:
             err_pair = None
-            if sshv == 1 and packet_type != SSH.Protocol.SMSG_PUBLIC_KEY:
-                err_pair = ('SMSG_PUBLIC_KEY', SSH.Protocol.SMSG_PUBLIC_KEY)
-            elif sshv == 2 and packet_type != SSH.Protocol.MSG_KEXINIT:
-                err_pair = ('MSG_KEXINIT', SSH.Protocol.MSG_KEXINIT)
+            if sshv == 1 and packet_type != SSH_Protocol.SMSG_PUBLIC_KEY:
+                err_pair = ('SMSG_PUBLIC_KEY', SSH_Protocol.SMSG_PUBLIC_KEY)
+            elif sshv == 2 and packet_type != SSH_Protocol.MSG_KEXINIT:
+                err_pair = ('MSG_KEXINIT', SSH_Protocol.MSG_KEXINIT)
             if err_pair is not None:
                 fmt = '[exception] did not receive {0} ({1}), ' + \
                       'instead received unknown message ({2})'
@@ -847,10 +854,10 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
     if sshv == 1:
         program_retval = output(aconf, banner, header, pkm=SSH1_PublicKeyMessage.parse(payload))
     elif sshv == 2:
-        kex = SSH2.Kex.parse(payload)
+        kex = SSH2_Kex.parse(payload)
         if aconf.client_audit is False:
-            SSH2.HostKeyTest.run(s, kex)
-            SSH2.GEXTest.run(s, kex)
+            SSH2_HostKeyTest.run(s, kex)
+            SSH2_GEXTest.run(s, kex)
 
         # This is a standard audit scan.
         if (aconf.policy is None) and (aconf.make_policy is False):
@@ -881,7 +888,7 @@ def algorithm_lookup(alg_names: str) -> int:
     }
 
     algorithm_names = alg_names.split(",")
-    adb = SSH2.KexDB.ALGORITHMS
+    adb = SSH2_KexDB.ALGORITHMS
 
     # Use nested dictionary comprehension to iterate an outer dictionary where
     # each key is an alg type that consists of a value (which is itself a
