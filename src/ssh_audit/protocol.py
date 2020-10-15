@@ -23,7 +23,7 @@
 """
 
 
-class SSH_Protocol:  # pylint: disable=too-few-public-methods
+class Protocol:  # pylint: disable=too-few-public-methods
     SMSG_PUBLIC_KEY = 2
     MSG_DEBUG = 4
     MSG_KEXINIT = 20

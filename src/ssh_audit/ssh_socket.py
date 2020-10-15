@@ -34,14 +34,14 @@ from typing import Dict, List, Set, Sequence, Tuple, Iterable  # noqa: F401
 from typing import Callable, Optional, Union, Any  # noqa: F401
 
 from ssh_audit import exitcodes
+from ssh_audit.banner import Banner
 from ssh_audit.globals import SSH_HEADER
 from ssh_audit.output import Output
+from ssh_audit.protocol import Protocol
 from ssh_audit.readbuf import ReadBuf
 from ssh_audit.ssh1 import SSH1
 from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.ssh2_kexparty import SSH2_KexParty
-from ssh_audit.ssh_banner import SSH_Banner
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.utils import Utils
 from ssh_audit.writebuf import WriteBuf
 
@@ -59,7 +59,7 @@ class SSH_Socket(ReadBuf, WriteBuf):
         self.__block_size = 8
         self.__state = 0
         self.__header = []  # type: List[str]
-        self.__banner = None  # type: Optional[SSH_Banner]
+        self.__banner = None  # type: Optional[Banner]
         if host is None:
             raise ValueError('undefined host')
         nport = Utils.parse_int(port)
@@ -174,7 +174,7 @@ class SSH_Socket(ReadBuf, WriteBuf):
             errm = 'cannot connect to {} port {}: {}'.format(*errt)
         return '[exception] {}'.format(errm)
 
-    def get_banner(self, sshv: int = 2) -> Tuple[Optional['SSH_Banner'], List[str], Optional[str]]:
+    def get_banner(self, sshv: int = 2) -> Tuple[Optional['Banner'], List[str], Optional[str]]:
         if self.__sock is None:
             return self.__banner, self.__header, 'not connected'
         if self.__banner is not None:
@@ -194,7 +194,7 @@ class SSH_Socket(ReadBuf, WriteBuf):
                 line = self.read_line()
                 if len(line.strip()) == 0:
                     continue
-                self.__banner = SSH_Banner.parse(line)
+                self.__banner = Banner.parse(line)
                 if self.__banner is not None:
                     return self.__banner, self.__header, None
                 self.__header.append(line)
@@ -243,7 +243,7 @@ class SSH_Socket(ReadBuf, WriteBuf):
         kexparty = SSH2_KexParty(ciphers, macs, compressions, languages)
         kex = SSH2_Kex(os.urandom(16), key_exchanges, hostkeys, kexparty, kexparty, False, 0)
 
-        self.write_byte(SSH_Protocol.MSG_KEXINIT)
+        self.write_byte(Protocol.MSG_KEXINIT)
         kex.write(self)
         self.send_packet()
 

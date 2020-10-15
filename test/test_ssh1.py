@@ -2,9 +2,10 @@ import struct
 import pytest
 
 from ssh_audit.auditconf import AuditConf
+from ssh_audit.fingerprint import Fingerprint
+from ssh_audit.protocol import Protocol
 from ssh_audit.readbuf import ReadBuf
 from ssh_audit.ssh import SSH
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh1 import SSH1
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.ssh_audit import audit
@@ -16,13 +17,14 @@ class TestSSH1:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
         self.ssh = SSH
-        self.ssh_protocol = SSH_Protocol
+        self.protocol = Protocol
         self.ssh1 = SSH1
         self.PublicKeyMessage = SSH1_PublicKeyMessage
         self.rbuf = ReadBuf
         self.wbuf = WriteBuf
         self.audit = audit
         self.AuditConf = AuditConf
+        self.fingerprint = Fingerprint
 
     def _conf(self):
         conf = self.AuditConf('localhost', 22)
@@ -70,7 +72,7 @@ class TestSSH1:
         b, e, m = self._host_key()
         fpd = self.wbuf._create_mpint(m, False)
         fpd += self.wbuf._create_mpint(e, False)
-        fp = self.ssh.Fingerprint(fpd)
+        fp = self.fingerprint(fpd)
         assert b == 2048
         assert fp.md5 == 'MD5:9d:26:f8:39:fc:20:9d:9b:ca:cc:4a:0f:e1:93:f5:96'
         assert fp.sha256 == 'SHA256:vZdx3mhzbvVJmn08t/ruv8WDhJ9jfKYsCTuSzot+QIs'
@@ -94,7 +96,7 @@ class TestSSH1:
         assert pkm.supported_ciphers == ['3des', 'blowfish']
         assert pkm.supported_authentications_mask == 36
         assert pkm.supported_authentications == ['rsa', 'tis']
-        fp = self.ssh.Fingerprint(pkm.host_key_fingerprint_data)
+        fp = self.fingerprint(pkm.host_key_fingerprint_data)
         assert fp.md5 == 'MD5:9d:26:f8:39:fc:20:9d:9b:ca:cc:4a:0f:e1:93:f5:96'
         assert fp.sha256 == 'SHA256:vZdx3mhzbvVJmn08t/ruv8WDhJ9jfKYsCTuSzot+QIs'
 
@@ -127,7 +129,7 @@ class TestSSH1:
     def test_ssh1_server_simple(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY)
+        w.write_byte(self.protocol.SMSG_PUBLIC_KEY)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush()))
@@ -139,7 +141,7 @@ class TestSSH1:
     def test_ssh1_server_invalid_first_packet(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY + 1)
+        w.write_byte(self.protocol.SMSG_PUBLIC_KEY + 1)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush()))
@@ -153,7 +155,7 @@ class TestSSH1:
     def test_ssh1_server_invalid_checksum(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh_protocol.SMSG_PUBLIC_KEY + 1)
+        w.write_byte(self.protocol.SMSG_PUBLIC_KEY + 1)
         w.write(self._pkm_payload())
         vsocket.rdata.append(b'SSH-1.5-OpenSSH_7.2 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh1_packet(w.write_flush(), False))

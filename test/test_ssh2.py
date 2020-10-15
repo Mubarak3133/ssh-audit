@@ -3,11 +3,11 @@ import struct
 import pytest
 
 from ssh_audit.auditconf import AuditConf
+from ssh_audit.protocol import Protocol
 from ssh_audit.readbuf import ReadBuf
 from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.ssh2_kexparty import SSH2_KexParty
 from ssh_audit.ssh import SSH
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh_audit import audit
 from ssh_audit.writebuf import WriteBuf
 
@@ -17,7 +17,7 @@ class TestSSH2:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
         self.ssh = SSH
-        self.ssh_protocol = SSH_Protocol
+        self.protocol = Protocol
         self.ssh2_kex = SSH2_Kex
         self.ssh2_kexparty = SSH2_KexParty
         self.rbuf = ReadBuf
@@ -138,7 +138,7 @@ class TestSSH2:
     def test_ssh2_server_simple(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh_protocol.MSG_KEXINIT)
+        w.write_byte(self.protocol.MSG_KEXINIT)
         w.write(self._kex_payload())
         vsocket.rdata.append(b'SSH-2.0-OpenSSH_7.3 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh2_packet(w.write_flush()))
@@ -150,7 +150,7 @@ class TestSSH2:
     def test_ssh2_server_invalid_first_packet(self, output_spy, virtual_socket):
         vsocket = virtual_socket
         w = self.wbuf()
-        w.write_byte(self.ssh_protocol.MSG_KEXINIT + 1)
+        w.write_byte(self.protocol.MSG_KEXINIT + 1)
         vsocket.rdata.append(b'SSH-2.0-OpenSSH_7.3 ssh-audit-test\r\n')
         vsocket.rdata.append(self._create_ssh2_packet(w.write_flush()))
         output_spy.begin()

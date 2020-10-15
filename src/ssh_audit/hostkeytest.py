@@ -27,15 +27,15 @@ import os
 from typing import Dict, List, Set, Sequence, Tuple, Iterable  # noqa: F401
 from typing import Callable, Optional, Union, Any  # noqa: F401
 
+from ssh_audit.kexdh import KexDH, KexGroup1, KexGroup14_SHA1, KexGroup14_SHA256, KexCurve25519_SHA256, KexGroup16_SHA512, KexGroup18_SHA512, KexGroupExchange_SHA1, KexGroupExchange_SHA256, KexNISTP256, KexNISTP384, KexNISTP521
+from ssh_audit.protocol import Protocol
 from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.ssh2_kexdb import SSH2_KexDB
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh_socket import SSH_Socket
-from ssh_audit.kexdh import KexDH, KexGroup1, KexGroup14_SHA1, KexGroup14_SHA256, KexCurve25519_SHA256, KexGroup16_SHA512, KexGroup18_SHA512, KexGroupExchange_SHA1, KexGroupExchange_SHA256, KexNISTP256, KexNISTP384, KexNISTP521
 
 
 # Obtains host keys, checks their size, and derives their fingerprints.
-class SSH2_HostKeyTest:
+class HostKeyTest:
     # Tracks the RSA host key types.  As of this writing, testing one in this family yields valid results for the rest.
     RSA_FAMILY = ['ssh-rsa', 'rsa-sha2-256', 'rsa-sha2-512']
 
@@ -80,7 +80,7 @@ class SSH2_HostKeyTest:
                 break
 
         if kex_str is not None and kex_group is not None:
-            SSH2_HostKeyTest.perform_test(s, server_kex, kex_str, kex_group, SSH2_HostKeyTest.HOST_KEY_TYPES)
+            HostKeyTest.perform_test(s, server_kex, kex_str, kex_group, HostKeyTest.HOST_KEY_TYPES)
 
     @staticmethod
     def perform_test(s: 'SSH_Socket', server_kex: 'SSH2_Kex', kex_str: str, kex_group: 'KexDH', host_key_types: Dict[str, Dict[str, bool]]) -> None:
@@ -126,7 +126,7 @@ class SSH2_HostKeyTest:
                 # matter, really).
                 client_kex = SSH2_Kex(os.urandom(16), [kex_str], [host_key_type], server_kex.client, server_kex.server, False, 0)
 
-                s.write_byte(SSH_Protocol.MSG_KEXINIT)
+                s.write_byte(Protocol.MSG_KEXINIT)
                 client_kex.write(s)
                 s.send_packet()
 
@@ -149,15 +149,15 @@ class SSH2_HostKeyTest:
                     # Set the hostkey size for all RSA key types since 'ssh-rsa',
                     # 'rsa-sha2-256', etc. are all using the same host key.
                     # Note, however, that this may change in the future.
-                    if cert is False and host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
-                        for rsa_type in SSH2_HostKeyTest.RSA_FAMILY:
+                    if cert is False and host_key_type in HostKeyTest.RSA_FAMILY:
+                        for rsa_type in HostKeyTest.RSA_FAMILY:
                             server_kex.set_rsa_key_size(rsa_type, hostkey_modulus_size)
                     elif cert is True:
                         server_kex.set_rsa_key_size(host_key_type, hostkey_modulus_size, ca_modulus_size)
 
                     # Keys smaller than 2048 result in a failure.  Update the database accordingly.
                     if (cert is False) and (hostkey_modulus_size < 2048):
-                        for rsa_type in SSH2_HostKeyTest.RSA_FAMILY:
+                        for rsa_type in HostKeyTest.RSA_FAMILY:
                             alg_list = SSH2_KexDB.ALGORITHMS['key'][rsa_type]
                             alg_list.append(['using small %d-bit modulus' % hostkey_modulus_size])
                     elif (cert is True) and ((hostkey_modulus_size < 2048) or (ca_modulus_size > 0 and ca_modulus_size < 2048)):  # pylint: disable=chained-comparison
@@ -167,8 +167,8 @@ class SSH2_HostKeyTest:
                         alg_list.append(['using small %d-bit modulus' % min_modulus])
 
                 # If this host key type is in the RSA family, then mark them all as parsed (since results in one are valid for them all).
-                if host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
-                    for rsa_type in SSH2_HostKeyTest.RSA_FAMILY:
+                if host_key_type in HostKeyTest.RSA_FAMILY:
+                    for rsa_type in HostKeyTest.RSA_FAMILY:
                         host_key_types[rsa_type]['parsed'] = True
                 else:
                     host_key_types[host_key_type]['parsed'] = True

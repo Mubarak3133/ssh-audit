@@ -35,21 +35,24 @@ from typing import Callable, Optional, Union, Any  # noqa: F401
 
 from ssh_audit.globals import GITHUB_ISSUES_URL, VERSION
 from ssh_audit.auditconf import AuditConf
+from ssh_audit.banner import Banner
 from ssh_audit import exitcodes
+from ssh_audit.fingerprint import Fingerprint
+from ssh_audit.gextest import GEXTest
+from ssh_audit.hostkeytest import HostKeyTest
 from ssh_audit.output import Output
 from ssh_audit.outputbuffer import OutputBuffer
 from ssh_audit.policy import Policy
+from ssh_audit.product import Product
+from ssh_audit.protocol import Protocol
 from ssh_audit.ssh1_kexdb import SSH1_KexDB
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
-from ssh_audit.ssh2_gextest import SSH2_GEXTest
-from ssh_audit.ssh2_hostkeytest import SSH2_HostKeyTest
 from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.ssh2_kexdb import SSH2_KexDB
 from ssh_audit.ssh import SSH  # pylint: disable=unused-import
-from ssh_audit.ssh_banner import SSH_Banner
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh_socket import SSH_Socket
 from ssh_audit.utils import Utils
+from ssh_audit.versionvulnerabilitydb import VersionVulnerabilityDB
 
 
 try:  # pragma: nocover
@@ -178,7 +181,7 @@ def output_compatibility(algs: SSH.Algorithms, client_audit: bool, for_server: b
 
     ssh_timeframe = algs.get_ssh_timeframe(for_server)
     comp_text = []
-    for ssh_prod in [SSH.Product.OpenSSH, SSH.Product.DropbearSSH]:
+    for ssh_prod in [Product.OpenSSH, Product.DropbearSSH]:
         if ssh_prod not in ssh_timeframe:
             continue
         v_from = ssh_timeframe.get_from(ssh_prod, for_server)
@@ -201,7 +204,7 @@ def output_compatibility(algs: SSH.Algorithms, client_audit: bool, for_server: b
 
 
 def output_security_sub(sub: str, software: Optional[SSH.Software], client_audit: bool, padlen: int) -> None:
-    secdb = SSH.Security.CVE if sub == 'cve' else SSH.Security.TXT
+    secdb = VersionVulnerabilityDB.CVE if sub == 'cve' else VersionVulnerabilityDB.TXT
     if software is None or software.product not in secdb:
         return
     for line in secdb[software.product]:
@@ -236,7 +239,7 @@ def output_security_sub(sub: str, software: Optional[SSH.Software], client_audit
             out.fail('(sec) {}{} -- {}'.format(name, p, descr))
 
 
-def output_security(banner: Optional[SSH_Banner], client_audit: bool, padlen: int, is_json_output: bool) -> None:
+def output_security(banner: Optional[Banner], client_audit: bool, padlen: int, is_json_output: bool) -> None:
     with OutputBuffer() as obuf:
         if banner is not None:
             software = SSH.Software.parse(banner)
@@ -253,7 +256,7 @@ def output_fingerprints(algs: SSH.Algorithms, is_json_output: bool, sha256: bool
         fps = []
         if algs.ssh1kex is not None:
             name = 'ssh-rsa1'
-            fp = SSH.Fingerprint(algs.ssh1kex.host_key_fingerprint_data)
+            fp = Fingerprint(algs.ssh1kex.host_key_fingerprint_data)
             # bits = algs.ssh1kex.host_key_bits
             fps.append((name, fp))
         if algs.ssh2kex is not None:
@@ -262,10 +265,10 @@ def output_fingerprints(algs: SSH.Algorithms, is_json_output: bool, sha256: bool
                 if host_keys[host_key_type] is None:
                     continue
 
-                fp = SSH.Fingerprint(host_keys[host_key_type])
+                fp = Fingerprint(host_keys[host_key_type])
 
                 # Workaround for Python's order-indifference in dicts.  We might get a random RSA type (ssh-rsa, rsa-sha2-256, or rsa-sha2-512), so running the tool against the same server three times may give three different host key types here.  So if we have any RSA type, we will simply hard-code it to 'ssh-rsa'.
-                if host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
+                if host_key_type in HostKeyTest.RSA_FAMILY:
                     host_key_type = 'ssh-rsa'
 
                 # Skip over certificate host types (or we would return invalid fingerprints).
@@ -290,11 +293,11 @@ def output_recommendations(algs: SSH.Algorithms, software: Optional[SSH.Software
 
     ret = True
     # PuTTY's algorithms cannot be modified, so there's no point in issuing recommendations.
-    if (software is not None) and (software.product == SSH.Product.PuTTY):
+    if (software is not None) and (software.product == Product.PuTTY):
         max_vuln_version = 0.0
         max_cvssv2_severity = 0.0
         # Search the CVE database for the most recent vulnerable version and the max CVSSv2 score.
-        for cve_list in SSH.Security.CVE['PuTTY']:
+        for cve_list in VersionVulnerabilityDB.CVE['PuTTY']:
             vuln_version = float(cve_list[1])
             cvssv2_severity = cve_list[4]
 
@@ -361,7 +364,7 @@ def output_recommendations(algs: SSH.Algorithms, software: Optional[SSH.Software
 def output_info(software: Optional['SSH.Software'], client_audit: bool, any_problems: bool, is_json_output: bool) -> None:
     with OutputBuffer() as obuf:
         # Tell user that PuTTY cannot be hardened at the protocol-level.
-        if client_audit and (software is not None) and (software.product == SSH.Product.PuTTY):
+        if client_audit and (software is not None) and (software.product == Product.PuTTY):
             out.warn('(nfo) PuTTY does not have the option of restricting any algorithms during the SSH handshake.')
 
         # If any warnings or failures were given, print a link to the hardening guides.
@@ -375,7 +378,7 @@ def output_info(software: Optional['SSH.Software'], client_audit: bool, any_prob
 
 
 # Returns a exitcodes.* flag to denote if any failures or warnings were encountered.
-def output(aconf: AuditConf, banner: Optional[SSH_Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2_Kex] = None, pkm: Optional[SSH1_PublicKeyMessage] = None, print_target: bool = False) -> int:
+def output(aconf: AuditConf, banner: Optional[Banner], header: List[str], client_host: Optional[str] = None, kex: Optional[SSH2_Kex] = None, pkm: Optional[SSH1_PublicKeyMessage] = None, print_target: bool = False) -> int:
 
     program_retval = exitcodes.GOOD
     client_audit = client_host is not None  # If set, this is a client audit.
@@ -459,7 +462,7 @@ def output(aconf: AuditConf, banner: Optional[SSH_Banner], header: List[str], cl
     return program_retval
 
 
-def evaluate_policy(aconf: AuditConf, banner: Optional['SSH_Banner'], client_host: Optional[str], kex: Optional['SSH2_Kex'] = None) -> bool:
+def evaluate_policy(aconf: AuditConf, banner: Optional['Banner'], client_host: Optional[str], kex: Optional['SSH2_Kex'] = None) -> bool:
 
     if aconf.policy is None:
         raise RuntimeError('Internal error: cannot evaluate against null Policy!')
@@ -554,7 +557,7 @@ def list_policies() -> None:
         print("\nHint: Use -P and provide the path to a policy to run a policy scan.\n")
 
 
-def make_policy(aconf: AuditConf, banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'], client_host: Optional[str]) -> None:
+def make_policy(aconf: AuditConf, banner: Optional['Banner'], kex: Optional['SSH2_Kex'], client_host: Optional[str]) -> None:
 
     # Set the source of this policy to the server host if this is a server audit, otherwise set it to the client address.
     source = aconf.host  # type: Optional[str]
@@ -699,7 +702,7 @@ def process_commandline(args: List[str], usage_cb: Callable[..., None]) -> 'Audi
     return aconf
 
 
-def build_struct(banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'] = None, pkm: Optional['SSH1_PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
+def build_struct(banner: Optional['Banner'], kex: Optional['SSH2_Kex'] = None, pkm: Optional['SSH1_PublicKeyMessage'] = None, client_host: Optional[str] = None) -> Any:
 
     banner_str = ''
     banner_protocol = None
@@ -757,7 +760,7 @@ def build_struct(banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'] = Non
 
         # Normalize all RSA key types to 'ssh-rsa'.  Otherwise, due to Python's order-indifference dictionary types, we would iterate key types in unpredictable orders, which interferes with the docker testing framework (i.e.: tests would fail because elements are reported out of order, even though the output is semantically the same).
         for host_key_type in list(host_keys.keys())[:]:
-            if host_key_type in SSH2_HostKeyTest.RSA_FAMILY:
+            if host_key_type in HostKeyTest.RSA_FAMILY:
                 val = host_keys[host_key_type]
                 del host_keys[host_key_type]
                 host_keys['ssh-rsa'] = val
@@ -766,7 +769,7 @@ def build_struct(banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'] = Non
             if host_keys[host_key_type] is None:
                 continue
 
-            fp = SSH.Fingerprint(host_keys[host_key_type])
+            fp = Fingerprint(host_keys[host_key_type])
 
             # Skip over certificate host types (or we would return invalid fingerprints).
             if '-cert-' in host_key_type:
@@ -783,7 +786,7 @@ def build_struct(banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'] = Non
         if pkm is not None:
             pkm_supported_ciphers = pkm.supported_ciphers
             pkm_supported_authentications = pkm.supported_authentications
-            pkm_fp = SSH.Fingerprint(pkm.host_key_fingerprint_data).sha256
+            pkm_fp = Fingerprint(pkm.host_key_fingerprint_data).sha256
 
         res['key'] = ['ssh-rsa1']
         res['enc'] = pkm_supported_ciphers
@@ -839,10 +842,10 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
             err = '[exception] error reading packet ({})'.format(payload_txt)
         else:
             err_pair = None
-            if sshv == 1 and packet_type != SSH_Protocol.SMSG_PUBLIC_KEY:
-                err_pair = ('SMSG_PUBLIC_KEY', SSH_Protocol.SMSG_PUBLIC_KEY)
-            elif sshv == 2 and packet_type != SSH_Protocol.MSG_KEXINIT:
-                err_pair = ('MSG_KEXINIT', SSH_Protocol.MSG_KEXINIT)
+            if sshv == 1 and packet_type != Protocol.SMSG_PUBLIC_KEY:
+                err_pair = ('SMSG_PUBLIC_KEY', Protocol.SMSG_PUBLIC_KEY)
+            elif sshv == 2 and packet_type != Protocol.MSG_KEXINIT:
+                err_pair = ('MSG_KEXINIT', Protocol.MSG_KEXINIT)
             if err_pair is not None:
                 fmt = '[exception] did not receive {0} ({1}), ' + \
                       'instead received unknown message ({2})'
@@ -856,8 +859,8 @@ def audit(aconf: AuditConf, sshv: Optional[int] = None, print_target: bool = Fal
     elif sshv == 2:
         kex = SSH2_Kex.parse(payload)
         if aconf.client_audit is False:
-            SSH2_HostKeyTest.run(s, kex)
-            SSH2_GEXTest.run(s, kex)
+            HostKeyTest.run(s, kex)
+            GEXTest.run(s, kex)
 
         # This is a standard audit scan.
         if (aconf.policy is None) and (aconf.make_policy is False):

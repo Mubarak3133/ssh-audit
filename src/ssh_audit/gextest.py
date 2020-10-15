@@ -27,16 +27,16 @@ import os
 from typing import Dict, List, Set, Sequence, Tuple, Iterable  # noqa: F401
 from typing import Callable, Optional, Union, Any  # noqa: F401
 
+from ssh_audit.kexdh import KexGroupExchange_SHA1, KexGroupExchange_SHA256
+from ssh_audit.protocol import Protocol
 from ssh_audit.ssh2_kexdb import SSH2_KexDB
 from ssh_audit.ssh2_kex import SSH2_Kex
-from ssh_audit.ssh_protocol import SSH_Protocol
 from ssh_audit.ssh_socket import SSH_Socket
-from ssh_audit.kexdh import KexGroupExchange_SHA1, KexGroupExchange_SHA256
 
 
 # Performs DH group exchanges to find what moduli are supported, and checks
 # their size.
-class SSH2_GEXTest:
+class GEXTest:
 
     # Creates a new connection to the server.  Returns True on success, or False.
     @staticmethod
@@ -63,7 +63,7 @@ class SSH2_GEXTest:
         # Send our KEX using the specified group-exchange and most of the
         # server's own values.
         client_kex = SSH2_Kex(os.urandom(16), [gex_alg], kex.key_algorithms, kex.client, kex.server, False, 0)
-        s.write_byte(SSH_Protocol.MSG_KEXINIT)
+        s.write_byte(Protocol.MSG_KEXINIT)
         client_kex.write(s)
         s.send_packet()
         return True
@@ -87,7 +87,7 @@ class SSH2_GEXTest:
         for gex_alg in GEX_ALGS:
             if gex_alg in kex.kex_algorithms:
 
-                if SSH2_GEXTest.reconnect(s, gex_alg) is False:
+                if GEXTest.reconnect(s, gex_alg) is False:
                     break
 
                 kex_group = GEX_ALGS[gex_alg]()
@@ -117,7 +117,7 @@ class SSH2_GEXTest:
                     if bits >= smallest_modulus > 0:
                         break
 
-                    if SSH2_GEXTest.reconnect(s, gex_alg) is False:
+                    if GEXTest.reconnect(s, gex_alg) is False:
                         reconnect_failed = True
                         break
 

@@ -1,6 +1,6 @@
 import pytest
 
-from ssh_audit.ssh_banner import SSH_Banner
+from ssh_audit.banner import Banner
 
 
 # pylint: disable=attribute-defined-outside-init
@@ -8,18 +8,18 @@ class TestVersionCompare:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
         self.ssh = ssh_audit.SSH
-        self.ssh_banner = SSH_Banner
+        self.banner = Banner
 
     def get_dropbear_software(self, v):
-        b = self.ssh_banner.parse('SSH-2.0-dropbear_{}'.format(v))
+        b = self.banner.parse('SSH-2.0-dropbear_{}'.format(v))
         return self.ssh.Software.parse(b)
 
     def get_openssh_software(self, v):
-        b = self.ssh_banner.parse('SSH-2.0-OpenSSH_{}'.format(v))
+        b = self.banner.parse('SSH-2.0-OpenSSH_{}'.format(v))
         return self.ssh.Software.parse(b)
 
     def get_libssh_software(self, v):
-        b = self.ssh_banner.parse('SSH-2.0-libssh-{}'.format(v))
+        b = self.banner.parse('SSH-2.0-libssh-{}'.format(v))
         return self.ssh.Software.parse(b)
 
     def test_dropbear_compare_version_pre_years(self):

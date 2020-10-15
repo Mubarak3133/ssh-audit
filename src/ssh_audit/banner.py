@@ -30,7 +30,7 @@ from typing import Callable, Optional, Union, Any  # noqa: F401
 from ssh_audit.utils import Utils
 
 
-class SSH_Banner:
+class Banner:
     _RXP, _RXR = r'SSH-\d\.\s*?\d+', r'(-\s*([^\s]*)(?:\s+(.*))?)?'
     RX_PROTOCOL = re.compile(re.sub(r'\\d(\+?)', r'(\\d\g<1>)', _RXP))
     RX_BANNER = re.compile(r'^({0}(?:(?:-{0})*)){1}$'.format(_RXP, _RXR))
@@ -75,7 +75,7 @@ class SSH_Banner:
         return '<{}({})>'.format(self.__class__.__name__, r)
 
     @classmethod
-    def parse(cls, banner: str) -> Optional['SSH_Banner']:
+    def parse(cls, banner: str) -> Optional['Banner']:
         valid_ascii = Utils.is_print_ascii(banner)
         ascii_banner = Utils.to_print_ascii(banner)
         mx = cls.RX_BANNER.match(ascii_banner)

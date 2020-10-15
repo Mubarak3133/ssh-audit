@@ -26,7 +26,7 @@ from typing import Optional, Any
 from datetime import date
 
 from ssh_audit.ssh2_kex import SSH2_Kex  # pylint: disable=unused-import
-from ssh_audit.ssh_banner import SSH_Banner
+from ssh_audit.banner import Banner
 
 
 # Validates policy files and performs policy testing
@@ -153,7 +153,7 @@ class Policy:
 
 
     @staticmethod
-    def create(source: Optional[str], banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex'], client_audit: bool) -> str:
+    def create(source: Optional[str], banner: Optional['Banner'], kex: Optional['SSH2_Kex'], client_audit: bool) -> str:
         '''Creates a policy based on a server configuration.  Returns a string.'''
 
         today = date.today().strftime('%Y/%m/%d')
@@ -238,7 +238,7 @@ macs = %s
         return policy_data
 
 
-    def evaluate(self, banner: Optional['SSH_Banner'], kex: Optional['SSH2_Kex']) -> Tuple[bool, List[Dict[str, str]], str]:
+    def evaluate(self, banner: Optional['Banner'], kex: Optional['SSH2_Kex']) -> Tuple[bool, List[Dict[str, str]], str]:
         '''Evaluates a server configuration against this policy.  Returns a tuple of a boolean (True if server adheres to policy) and an array of strings that holds error messages.'''
 
         ret = True
