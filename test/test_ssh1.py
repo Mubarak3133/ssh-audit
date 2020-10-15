@@ -5,7 +5,6 @@ from ssh_audit.auditconf import AuditConf
 from ssh_audit.fingerprint import Fingerprint
 from ssh_audit.protocol import Protocol
 from ssh_audit.readbuf import ReadBuf
-from ssh_audit.ssh import SSH
 from ssh_audit.ssh1 import SSH1
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.ssh_audit import audit
@@ -16,7 +15,6 @@ from ssh_audit.writebuf import WriteBuf
 class TestSSH1:
     @pytest.fixture(autouse=True)
     def init(self, ssh_audit):
-        self.ssh = SSH
         self.protocol = Protocol
         self.ssh1 = SSH1
         self.PublicKeyMessage = SSH1_PublicKeyMessage

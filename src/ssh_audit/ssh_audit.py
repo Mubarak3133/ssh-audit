@@ -34,6 +34,8 @@ from typing import Dict, List, Set, Sequence, Tuple, Iterable  # noqa: F401
 from typing import Callable, Optional, Union, Any  # noqa: F401
 
 from ssh_audit.globals import GITHUB_ISSUES_URL, VERSION
+from ssh_audit.algorithm import Algorithm
+from ssh_audit.algorithms import Algorithms
 from ssh_audit.auditconf import AuditConf
 from ssh_audit.banner import Banner
 from ssh_audit import exitcodes
@@ -45,11 +47,11 @@ from ssh_audit.outputbuffer import OutputBuffer
 from ssh_audit.policy import Policy
 from ssh_audit.product import Product
 from ssh_audit.protocol import Protocol
+from ssh_audit.software import Software
 from ssh_audit.ssh1_kexdb import SSH1_KexDB
 from ssh_audit.ssh1_publickeymessage import SSH1_PublicKeyMessage
 from ssh_audit.ssh2_kex import SSH2_Kex
 from ssh_audit.ssh2_kexdb import SSH2_KexDB
-from ssh_audit.ssh import SSH  # pylint: disable=unused-import
 from ssh_audit.ssh_socket import SSH_Socket
 from ssh_audit.utils import Utils
 from ssh_audit.versionvulnerabilitydb import VersionVulnerabilityDB
@@ -133,7 +135,7 @@ def output_algorithm(alg_db: Dict[str, Dict[str, List[List[Optional[str]]]]], al
         for idx, level in enumerate(['fail', 'warn', 'info']):
             if level == 'info':
                 versions = alg_desc[0]
-                since_text = SSH.Algorithm.get_since_text(versions)
+                since_text = Algorithm.get_since_text(versions)
                 if since_text is not None and len(since_text) > 0:
                     texts.append((level, since_text))
             idx = idx + 1
@@ -173,7 +175,7 @@ def output_algorithm(alg_db: Dict[str, Dict[str, List[List[Optional[str]]]]], al
     return program_retval
 
 
-def output_compatibility(algs: SSH.Algorithms, client_audit: bool, for_server: bool = True) -> None:
+def output_compatibility(algs: Algorithms, client_audit: bool, for_server: bool = True) -> None:
 
     # Don't output any compatibility info if we're doing a client audit.
     if client_audit:
@@ -193,7 +195,7 @@ def output_compatibility(algs: SSH.Algorithms, client_audit: bool, for_server: b
         elif v_from == v_till:
             comp_text.append('{} {}'.format(ssh_prod, v_from))
         else:
-            software = SSH.Software(None, ssh_prod, v_from, None, None)
+            software = Software(None, ssh_prod, v_from, None, None)
             if software.compare_version(v_till) > 0:
                 tfmt = '{0} {1}+ (some functionality from {2})'
             else:
@@ -203,7 +205,7 @@ def output_compatibility(algs: SSH.Algorithms, client_audit: bool, for_server: b
         out.good('(gen) compatibility: ' + ', '.join(comp_text))
 
 
-def output_security_sub(sub: str, software: Optional[SSH.Software], client_audit: bool, padlen: int) -> None:
+def output_security_sub(sub: str, software: Optional[Software], client_audit: bool, padlen: int) -> None:
     secdb = VersionVulnerabilityDB.CVE if sub == 'cve' else VersionVulnerabilityDB.TXT
     if software is None or software.product not in secdb:
         return
@@ -242,7 +244,7 @@ def output_security_sub(sub: str, software: Optional[SSH.Software], client_audit
 def output_security(banner: Optional[Banner], client_audit: bool, padlen: int, is_json_output: bool) -> None:
     with OutputBuffer() as obuf:
         if banner is not None:
-            software = SSH.Software.parse(banner)
+            software = Software.parse(banner)
             output_security_sub('cve', software, client_audit, padlen)
             output_security_sub('txt', software, client_audit, padlen)
     if len(obuf) > 0 and not is_json_output:
@@ -251,7 +253,7 @@ def output_security(banner: Optional[Banner], client_audit: bool, padlen: int, i
         out.sep()
 
 
-def output_fingerprints(algs: SSH.Algorithms, is_json_output: bool, sha256: bool = True) -> None:
+def output_fingerprints(algs: Algorithms, is_json_output: bool, sha256: bool = True) -> None:
     with OutputBuffer() as obuf:
         fps = []
         if algs.ssh1kex is not None:
@@ -289,7 +291,7 @@ def output_fingerprints(algs: SSH.Algorithms, is_json_output: bool, sha256: bool
 
 
 # Returns True if no warnings or failures encountered in configuration.
-def output_recommendations(algs: SSH.Algorithms, software: Optional[SSH.Software], is_json_output: bool, padlen: int = 0) -> bool:
+def output_recommendations(algs: Algorithms, software: Optional[Software], is_json_output: bool, padlen: int = 0) -> bool:
 
     ret = True
     # PuTTY's algorithms cannot be modified, so there's no point in issuing recommendations.
@@ -361,7 +363,7 @@ def output_recommendations(algs: SSH.Algorithms, software: Optional[SSH.Software
 
 
 # Output additional information & notes.
-def output_info(software: Optional['SSH.Software'], client_audit: bool, any_problems: bool, is_json_output: bool) -> None:
+def output_info(software: Optional['Software'], client_audit: bool, any_problems: bool, is_json_output: bool) -> None:
     with OutputBuffer() as obuf:
         # Tell user that PuTTY cannot be hardened at the protocol-level.
         if client_audit and (software is not None) and (software.product == Product.PuTTY):
@@ -383,7 +385,7 @@ def output(aconf: AuditConf, banner: Optional[Banner], header: List[str], client
     program_retval = exitcodes.GOOD
     client_audit = client_host is not None  # If set, this is a client audit.
     sshv = 1 if pkm is not None else 2
-    algs = SSH.Algorithms(pkm, kex)
+    algs = Algorithms(pkm, kex)
     with OutputBuffer() as obuf:
         if print_target:
             host = aconf.host
@@ -409,7 +411,7 @@ def output(aconf: AuditConf, banner: Optional[Banner], header: List[str], client
                 out.warn('(gen) banner contains non-printable ASCII')
             if sshv == 1 or banner.protocol[0] == 1:
                 out.fail('(gen) protocol SSH1 enabled')
-            software = SSH.Software.parse(banner)
+            software = Software.parse(banner)
             if software is not None:
                 out.good('(gen) software: {}'.format(software))
         else:
